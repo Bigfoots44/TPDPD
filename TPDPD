@@ -1,4 +1,5 @@
 //TPDPD - Toilet Paper Destructino Prevention Device
+//vibreation sensor used: https://www.amazon.com/gp/product/B07BP5568L/ref=ppx_yo_dt_b_asin_title_o06_s00?ie=UTF8&psc=1
 
 //How it works in english:
 
@@ -6,7 +7,7 @@
 //From here 2 things can happen
 
 //1
-//the cat try to destroy the toilet paper and shakes the sensor, the sesor return high and..
+//the cat trys to destroy the toilet paper and shakes the sensor, the sesor return high and..
 //beeps are made for 3 seconds
 //the alarm triggered is set to high and until the device is disarmed by pushing the button the red led will blink on and off every .5 seconds
 
