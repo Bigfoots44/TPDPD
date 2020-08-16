@@ -1,0 +1,160 @@
+//TPDPD - Toilet Paper Destructino Prevention Device
+
+//How it works in english:
+
+//When the arduino is powered up the device is in an armed state, the red LED is light and the board is waiting for the vibration sensor to return a high voltage
+//From here 2 things can happen
+
+//1
+//the cat try to destroy the toilet paper and shakes the sensor, the sesor return high and..
+//beeps are made for 3 seconds
+//the alarm triggered is set to high and until the device is disarmed by pushing the button the red led will blink on and off every .5 seconds
+
+//2
+//the button is pushed
+//this stops the alarm is it is beeping
+//disarms the device
+//resets the trigger
+//waits 60 seconds
+//blinks the green led
+//blinks the red led
+//turns red led on
+//rearms
+
+//NOTE: we had to avoid using delay() anytime we would want to press the button as this freezes the code and make the arduino unable to listed for a button press
+
+const int outputA = 6; // vibration sensor input pin
+const int ledG =  9;// the number of the Green LED output pin
+const int ledR =  8;// the number of the Red LED output pin
+const int buzzPin =  10;// the number of the Buzzer output pin
+const int buzz2Pin =  11;// the number of the 2nd Buzzer output pin
+const int button = 12;// the number of the Button input pin
+
+int ledGstate;// current state of the green led
+int ledRstate;// current state of the red led
+int buttonstate;// current state of the button
+int aLastState;// last state of vibration sensor circuit
+int buzzerState = LOW;// buzzerState used to set the buzzer on or off, currently setting it to off
+int alarmArmed = HIGH;// if the alarm is armed or not, current it is armed
+int alarmState = LOW;// this will go high if the alarm is currently making noise, currently is nto making noise
+int alarmTrigger = LOW;// if the alarm is not triggerd this should be low, this will go high when vibration is detected
+int alarmTriggered = LOW;//this will go to high once if the alarm is ever triggered, we use it to make the red led flash so we know if the cat touched the toilet paper, this will be reset when the alarm is disarmed 
+
+unsigned long previousMillis = 0;// will store last time LED was updated
+unsigned long alarmStartMillis = 0;// when the last alarm started
+unsigned long disarmMillis = 0;// when the device was disarmed
+unsigned long rearmTimer = 60000;// rearm timer - how long you have to grab some toilet paper
+unsigned long timer = 200;// interval at which to beep (milliseconds)
+unsigned long alarmDuration = 3000;// how long the alarm should run for
+unsigned long RledTimer = 500;// for strobing the red once the alarm has been triggered
+unsigned long lastStrobe = 0;// for tracking when the last strobe was
+
+void setup() {
+  pinMode(outputA, INPUT);
+  pinMode(ledG, OUTPUT);
+  pinMode(ledG, OUTPUT);
+  pinMode(ledR, OUTPUT);
+  
+  pinMode(buzzPin, OUTPUT);
+  pinMode(buzz2Pin, OUTPUT);
+  digitalWrite(ledR, HIGH);
+  digitalWrite(ledG, LOW);
+  alarmArmed = HIGH;
+  ledRstate = HIGH;
+
+// start listening to the output of the vibration sensor board
+  Serial.begin (9600);
+  aLastState = digitalRead(outputA);
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  buttonstate = digitalRead(button);//low if the button is not being pressed, high if it is
+  digitalWrite(ledG, ledGstate);
+  digitalWrite(ledR, ledRstate);
+
+  //if the button is pushed arm/disarm the alarm and mark a red led if armed, green if not
+  if (buttonstate == HIGH){  
+    if (alarmArmed == HIGH){
+      ledGstate = HIGH;
+      ledRstate = LOW;
+      alarmArmed = LOW;
+      alarmState = LOW; //stop the beeping if it is beeping
+      alarmTriggered = LOW; //reset the trip alert blink thing
+      disarmMillis = currentMillis;
+    } else {
+      ledGstate = LOW;
+      ledRstate = HIGH;
+      alarmArmed = HIGH;
+      delay(300);//need this to allow the motion sensor to settle
+    } 
+    delay(250);//needs this so the button can be released before we get the next button state otherwise it will flip back and forth armed/disarmed really fast
+  }
+
+  //if the alarm is disarmed then rearm it if the set amount of time has passed
+  if (alarmArmed == LOW && currentMillis - disarmMillis >= rearmTimer){
+    digitalWrite(ledG, LOW); //some fun blinks I know this can be done in a better way but i am lazy
+    delay(200);
+    digitalWrite(ledG, HIGH);
+    delay(200);
+    digitalWrite(ledG, LOW);
+    delay(200);
+    digitalWrite(ledR, HIGH);
+    delay(200);
+    digitalWrite(ledR, LOW);
+    ledGstate = LOW;
+    ledRstate = HIGH;
+    alarmArmed = HIGH;
+    digitalWrite(ledG, ledGstate);// need to set these her so we can put in a delay for both: 
+    digitalWrite(ledR, ledRstate);// the resolution of button clicks and to let the vibration sensor settle down
+    delay(200);
+  }
+
+  //if the alarm is armed and sensor was shook: make the buzzer buzz
+  if (alarmArmed == HIGH){   
+    if (aLastState != digitalRead(outputA)){
+      aLastState = digitalRead(outputA);
+      alarmState = HIGH;
+      alarmTriggered = HIGH;
+      alarmStartMillis = currentMillis;
+      lastStrobe = currentMillis;
+    }
+  }
+
+  //if the alarmstate is high and it has not been longer than the duration set since the alarm started
+  if (alarmState == HIGH && currentMillis - alarmStartMillis <= alarmDuration ) {
+    if (currentMillis - previousMillis >= timer) {
+      // save the last time you blinked the LED
+      previousMillis = currentMillis;
+    
+      // if the buzzer is off turn it on and vice-versa:
+      if (buzzerState == LOW) {
+        buzzerState = HIGH;
+      } else {
+        buzzerState = LOW;
+      }
+    
+      // set the state of the buzzer
+      digitalWrite(buzzPin, buzzerState);
+      delay(100); //this delay is so the buzzers buzz a then a+2 then b then none. each buzzer is slight different frequency due to manafacturing differneces and this make it make a horrible sound. The cat HATES it.
+      digitalWrite(buzz2Pin, buzzerState);
+    } 
+  } else {
+    alarmState = LOW;
+    buzzerState = LOW;
+    digitalWrite(buzzPin, buzzerState);
+    digitalWrite(buzz2Pin, buzzerState);
+  }
+
+  //if the alarm has been set off then make the red blink so we know there was an attempt on the life of the toilet paper
+  if (alarmTriggered == HIGH && lastStrobe + RledTimer <= currentMillis){
+    if (ledRstate == HIGH){
+      ledRstate = LOW;
+      lastStrobe = currentMillis;
+    } else {
+      ledRstate = HIGH;
+      lastStrobe = currentMillis;
+    }
+  }
+}
